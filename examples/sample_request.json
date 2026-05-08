@@ -1,0 +1,8 @@
+{
+  "topic": "artificial intelligence",
+  "limit": 5,
+  "save_csv": true,
+  "max_authors_per_paper": 1,
+  "from_year": 2023,
+  "sort_by": "relevance"
+}

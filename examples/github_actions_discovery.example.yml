@@ -1,0 +1,60 @@
+name: AI Research Discovery Example
+
+# Public repository example only.
+# Copy this file into `.github/workflows/discover.yml` in a private repository
+# before enabling real automated discovery and generated output commits.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run discovery
+        run: |
+          python -m backend.cli_search \
+            --topics \
+              "LLM agents evaluation" \
+              "AI for science foundation models" \
+              "multimodal AI agents" \
+              "robot learning foundation models" \
+              "AI safety evaluation" \
+              "data-centric AI benchmark" \
+              "ML infrastructure for LLMs" \
+            --limit 30 \
+            --from-year 2023 \
+            --sort-by relevance \
+            --max-authors-per-paper 1 \
+            --output-dir outputs/latest
+
+      - name: Commit updated outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add outputs/latest/candidates.md outputs/latest/candidates.csv outputs/latest/candidates.json
+          if git diff --cached --quiet; then
+            echo "No candidate output changes to commit."
+          else
+            git commit -m "Update research discovery outputs"
+            git push
+          fi
