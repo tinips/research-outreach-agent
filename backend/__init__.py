@@ -1,1 +1,1 @@
-"""Backend package for the Research Outreach Agent."""
+"""Deterministic Research Outreach Agent backend."""

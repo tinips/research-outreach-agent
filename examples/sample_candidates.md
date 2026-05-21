@@ -1,95 +1,57 @@
 # Research Outreach Candidates
 
-- Search datetime UTC: 2026-05-08T08:00:00+00:00
-- Topics used: LLM agents evaluation, AI for science foundation models, multimodal AI agents
+- Search datetime UTC: 2026-01-01T00:00:00+00:00
+- Topics used: LLM agents evaluation, reproducible AI systems
 - Candidate count: 2
-- Email extraction: not performed
+- Email lookup: synthetic example only
 - Outreach status: no emails sent
 
-## 1. Dr. Alex Rivera
+## 1. Jane Researcher
 
-- Contact name: Dr. Alex Rivera
+- Contact name: Jane Researcher
 - Person key: openalex:A000000001
 - Paper key: openalex:W000000001
 - Candidate key: openalex:A000000001::openalex:W000000001
 - Status: new
-- Institution: Example Multimodal AI Lab
-- Paper title: A Sample Benchmark for Multimodal Foundation Models
+- Institution: Example University
+- Paper title: A Synthetic Benchmark for Reproducible AI Agents
 - Year: 2025
-- Paper URL: https://openalex.org/W000000001
-- Cited by count: 74
-- Source: openalex
+- Paper URL: https://example.com/papers/synthetic-agent-benchmark
+- Email: researcher@example.edu
+- Email confidence: high
 - Contact priority: high
-
-### Scores
-
-- Lab signal: 0.55
-- Paper signal: 0.72
-- Project activity: 0.8
-- Contactability: 1.0
-- Contribution angle: 1.0
-- Profile fit: 0.5
-- Search signal: 0.73
-- Fit score: 0.73
-
-### Why Interesting
-
-A Sample Benchmark for Multimodal Foundation Models appears relevant because it is a 2025 AI paper with 74 OpenAlex citations and a search signal score of 0.73.
 
 ### Opportunity Angle
 
 Potential research engineering contribution: implementation, experiments, evaluation, reproducibility, or research tooling.
 
-### Suggested Outreach Angle
-
-Offer research engineering help with benchmarks, evaluation runs, reproducibility checks, and analysis tooling.
-
 ### Verification Notes
 
-- Metadata comes from OpenAlex.
-- No email extraction, website scraping, LinkedIn automation, or outreach sending was performed.
-- Verify the paper, author, institution, and best contact path before drafting outreach.
+- This is fake example data.
+- No real candidate, outreach history, or private contact data is included.
+- Verify real paper, author, institution, and contact details before outreach.
 
-## 2. Jamie Chen
+## 2. Riley Scholar
 
-- Contact name: Jamie Chen
+- Contact name: Riley Scholar
 - Person key: openalex:A000000002
 - Paper key: openalex:W000000002
 - Candidate key: openalex:A000000002::openalex:W000000002
 - Status: new
-- Institution: Sample Robotics and Embodied AI Group
-- Paper title: Open-Ended Agent Learning in Simulated Robot Tasks
+- Institution: Example AI Lab
+- Paper title: A Synthetic Study of Data Pipelines for Model Evaluation
 - Year: 2024
-- Paper URL: https://openalex.org/W000000002
-- Cited by count: 46
-- Source: openalex
-- Contact priority: high
-
-### Scores
-
-- Lab signal: 0.55
-- Paper signal: 0.66
-- Project activity: 0.75
-- Contactability: 1.0
-- Contribution angle: 1.0
-- Profile fit: 0.75
-- Search signal: 0.718
-- Fit score: 0.718
-
-### Why Interesting
-
-Open-Ended Agent Learning in Simulated Robot Tasks appears relevant because it is a 2024 AI paper with 46 OpenAlex citations and a search signal score of 0.718.
+- Paper URL: https://example.com/papers/synthetic-data-pipelines
+- Email: not found
+- Email confidence: not_found
+- Contact priority: medium
 
 ### Opportunity Angle
 
-Potential research engineering contribution: implementation, experiments, evaluation, reproducibility, or research tooling.
-
-### Suggested Outreach Angle
-
-Offer help with experimental pipelines, simulation workflows, trajectory analysis, and reproducible robotics evaluation.
+Potential research engineering contribution: data processing, experiment tracking, and reproducible tooling.
 
 ### Verification Notes
 
-- Metadata comes from OpenAlex.
-- No email extraction, website scraping, LinkedIn automation, or outreach sending was performed.
-- Verify the paper, author, institution, and best contact path before drafting outreach.
+- This is fake example data.
+- No real candidate, outreach history, or private contact data is included.
+- Verify real paper, author, institution, and contact details before outreach.

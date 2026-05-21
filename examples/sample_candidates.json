@@ -1,0 +1,25 @@
+{
+  "topics": ["LLM agents evaluation"],
+  "count": 1,
+  "candidates": [
+    {
+      "candidate_key": "openalex:A000000001::openalex:W000000001",
+      "person_key": "openalex:A000000001",
+      "paper_key": "openalex:W000000001",
+      "name": "Jane Researcher",
+      "group": "stretch",
+      "email": "researcher@example.edu",
+      "email_confidence": "high",
+      "institution": "Example University",
+      "inferred_role": "first author; exact role unknown",
+      "paper_title": "A Synthetic Benchmark for Reproducible AI Agents",
+      "paper_url": "https://example.com/papers/synthetic-agent-benchmark",
+      "opportunity_angle": "Evaluation and reproducibility support.",
+      "suggested_outreach_angle": "Offer help with benchmark implementation and analysis tooling."
+    }
+  ],
+  "notes": [
+    "Synthetic example only.",
+    "Do not commit real candidate files to a public repository."
+  ]
+}

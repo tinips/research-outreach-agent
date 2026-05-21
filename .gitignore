@@ -1,27 +1,55 @@
+# Environment and credentials
 .env
 *.env
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-env/
+.env.*
+!.env.example
 credentials.json
 token.json
 client_secret*.json
-logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Generated outreach outputs
+outputs/**
+!outputs/
+!outputs/.gitkeep
+
+# Private/generated local data
 data/*.csv
+data/*.json
 data/private/
-outputs/latest/
-outputs/tmp/
-outputs/raw/
-outputs/*.log
-*.csv
-*.xlsx
-.DS_Store
+!data/
+!data/.gitkeep
+
+# Logs and run artifacts
+logs/
+*.log
+
+# CVs and attachments
+attachments/
+cv/
+*.pdf
+
+# Local IDE/editor files
 .vscode/
 .idea/
+*.swp
+*.swo
 
-!outputs/.gitkeep
-!examples/*.csv
-!examples/*.json
-!examples/*.md
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -122,6 +122,7 @@ def _build_candidates(
 
             seen_author_keys.add(author_key)
             institution = _extract_institution(authorship)
+            email = _extract_email(authorship)
             paper_url = _extract_paper_url(work)
             scores = score_candidate(
                 topic=topic,
@@ -134,6 +135,8 @@ def _build_candidates(
                 name=name,
                 institution=institution,
                 author_url=author_id,
+                email=email,
+                email_source="candidate" if email else None,
                 source="openalex",
                 paper_id=paper_id,
                 paper_title=work.get("display_name") or work.get("title"),
@@ -169,6 +172,17 @@ def _extract_institution(authorship: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _extract_email(authorship: dict[str, Any]) -> Optional[str]:
+    raw_affiliations = authorship.get("raw_affiliation_strings") or []
+    for raw_affiliation in raw_affiliations:
+        if not isinstance(raw_affiliation, str):
+            continue
+        match = EMAIL_PATTERN.search(raw_affiliation)
+        if match:
+            return match.group(0)
+    return None
+
+
 def _clean_institution(institution: str) -> Optional[str]:
     cleaned = EMAIL_PATTERN.sub("", institution)
     cleaned = re.sub(r"\s+", " ", cleaned)
@@ -195,23 +209,33 @@ def _paper_key(work: dict[str, Any]) -> Optional[str]:
 
 
 def _rank_authorships(authorships: list[Any]) -> list[dict[str, Any]]:
-    ranked_authorships: list[tuple[int, int, int, dict[str, Any]]] = []
+    ranked_authorships: list[tuple[int, int, int, int, dict[str, Any]]] = []
     for index, authorship in enumerate(authorships):
         if not isinstance(authorship, dict):
             continue
         author = authorship.get("author") or {}
         has_author_id = isinstance(author, dict) and bool(author.get("id"))
         has_institution = bool(_extract_institution(authorship))
+        position = authorship.get("author_position")
+        if position == "first":
+            position_rank = 0
+        elif position == "middle":
+            position_rank = 1
+        elif position == "last":
+            position_rank = 2
+        else:
+            position_rank = 3
         ranked_authorships.append(
             (
                 0 if has_institution else 1,
                 0 if has_author_id else 1,
+                position_rank,
                 index,
                 authorship,
             )
         )
 
-    return [authorship for _, _, _, authorship in sorted(ranked_authorships)]
+    return [authorship for _, _, _, _, authorship in sorted(ranked_authorships)]
 
 
 def _extract_paper_url(work: dict[str, Any]) -> Optional[str]:

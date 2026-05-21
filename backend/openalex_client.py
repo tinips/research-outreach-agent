@@ -16,9 +16,7 @@ class OpenAlexAPIError(RuntimeError):
 load_dotenv()
 
 
-def reconstruct_abstract(
-    abstract_inverted_index: Optional[dict[str, list[int]]],
-) -> Optional[str]:
+def reconstruct_abstract(abstract_inverted_index: Optional[dict[str, list[int]]]) -> Optional[str]:
     if not abstract_inverted_index:
         return None
 
@@ -32,7 +30,6 @@ def reconstruct_abstract(
 
     if not positioned_words:
         return None
-
     return " ".join(word for _, word in sorted(positioned_words))
 
 
@@ -41,16 +38,19 @@ def search_works(
     limit: int,
     from_year: int | None = 2023,
     sort_by: str = "relevance",
+    *,
+    page: int = 1,
+    page_size: int | None = None,
 ) -> list[dict[str, Any]]:
-    per_page = min(max(limit * 5, 25), 50)
+    per_page = min(max(page_size if page_size is not None else max(limit * 5, 25), 1), 50)
     params: dict[str, Any] = {
         "search": topic,
         "per-page": per_page,
+        "page": max(1, page),
     }
 
     if from_year:
         params["filter"] = f"from_publication_date:{from_year}-01-01"
-
     if sort_by == "citations":
         params["sort"] = "cited_by_count:desc"
     elif sort_by == "recent":
@@ -61,11 +61,7 @@ def search_works(
         params["mailto"] = mailto
 
     try:
-        response = requests.get(
-            f"{BASE_URL}/works",
-            params=params,
-            timeout=REQUEST_TIMEOUT_SECONDS,
-        )
+        response = requests.get(f"{BASE_URL}/works", params=params, timeout=REQUEST_TIMEOUT_SECONDS)
         response.raise_for_status()
     except requests.RequestException as exc:
         raise OpenAlexAPIError(f"OpenAlex request failed: {exc}") from exc
@@ -84,9 +80,6 @@ def search_works(
         if not isinstance(work, dict):
             continue
         normalized_work = dict(work)
-        normalized_work["abstract"] = reconstruct_abstract(
-            normalized_work.get("abstract_inverted_index")
-        )
+        normalized_work["abstract"] = reconstruct_abstract(normalized_work.get("abstract_inverted_index"))
         works.append(normalized_work)
-
     return works

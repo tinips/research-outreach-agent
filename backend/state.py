@@ -9,68 +9,33 @@ from .models import Candidate
 
 DATA_DIR = Path("data")
 
-CONTACTED_PEOPLE_FIELDS = [
+SEEN_CANDIDATES_FIELDS = [
+    "candidate_key",
     "person_key",
+    "paper_key",
     "name",
     "institution",
-    "author_url",
-    "email",
-    "linkedin_url",
-    "first_contacted_at",
-    "last_contacted_at",
-    "status",
-    "notes",
-]
-CONTACTED_PAPERS_FIELDS = [
-    "paper_key",
     "paper_title",
     "paper_url",
     "first_seen_at",
+    "last_seen_at",
+    "times_seen",
+    "last_score",
+    "last_group",
     "status",
     "notes",
 ]
-DRAFTED_CANDIDATES_FIELDS = [
-    "candidate_key",
-    "person_key",
-    "paper_key",
-    "name",
-    "institution",
-    "paper_title",
-    "drafted_at",
-    "status",
-    "notes",
-]
-BLOCKED_CANDIDATES_FIELDS = [
-    "candidate_key",
-    "type",
-    "value",
-    "reason",
-    "created_at",
-]
-
-CONTACTED_PEOPLE_EXCLUDE_STATUSES = {"contacted", "replied", "rejected", "blocked"}
-CONTACTED_PAPERS_EXCLUDE_STATUSES = {"used_for_contact", "blocked"}
-DRAFTED_EXCLUDE_STATUSES = {"drafted", "contacted"}
-
-
-def ensure_state_files(data_dir: Path = DATA_DIR) -> None:
-    data_dir.mkdir(parents=True, exist_ok=True)
-    _ensure_csv(data_dir / "contacted_people.csv", CONTACTED_PEOPLE_FIELDS)
-    _ensure_csv(data_dir / "contacted_papers.csv", CONTACTED_PAPERS_FIELDS)
-    _ensure_csv(data_dir / "drafted_candidates.csv", DRAFTED_CANDIDATES_FIELDS)
-    _ensure_csv(data_dir / "blocked_candidates.csv", BLOCKED_CANDIDATES_FIELDS)
 
 
 def attach_tracking(candidate: Candidate, status: Optional[str] = None) -> Candidate:
     person_key = build_person_key(candidate)
     paper_key = build_paper_key(candidate)
-    candidate_key = build_candidate_key(person_key, paper_key)
     return _copy_candidate(
         candidate,
         {
             "person_key": person_key,
             "paper_key": paper_key,
-            "candidate_key": candidate_key,
+            "candidate_key": build_candidate_key(person_key, paper_key),
             "status": status or candidate.status or "new",
         },
     )
@@ -79,185 +44,123 @@ def attach_tracking(candidate: Candidate, status: Optional[str] = None) -> Candi
 def filter_candidates(
     candidates: Iterable[Candidate],
     *,
-    include_drafted: bool = False,
-    include_contacted: bool = False,
     data_dir: Path = DATA_DIR,
 ) -> list[Candidate]:
-    state = load_state(data_dir)
-    filtered: list[Candidate] = []
+    return [attach_tracking(candidate) for candidate in candidates]
 
-    for candidate in candidates:
-        tracked = attach_tracking(candidate)
-        status = candidate_state_status(tracked, state)
-        tracked = _copy_candidate(tracked, {"status": status})
 
-        if status == "blocked":
+def load_state(data_dir: Path = DATA_DIR) -> dict:
+    seen_rows = _read_csv(data_dir / "seen_candidates.csv")
+    seen_candidates = {
+        row["candidate_key"]: row
+        for row in seen_rows
+        if row.get("candidate_key")
+    }
+    seen_papers: dict[str, dict[str, str]] = {}
+    for row in seen_rows:
+        paper_key = row.get("paper_key")
+        if not paper_key:
             continue
-        is_contacted_status = status in CONTACTED_PEOPLE_EXCLUDE_STATUSES | CONTACTED_PAPERS_EXCLUDE_STATUSES
-        if is_contacted_status:
-            if not include_contacted:
-                continue
-        elif status in DRAFTED_EXCLUDE_STATUSES and not include_drafted:
+        existing = seen_papers.get(paper_key)
+        if not existing:
+            seen_papers[paper_key] = row
             continue
-        filtered.append(tracked)
+        existing_seen = existing.get("last_seen_at") or existing.get("first_seen_at") or ""
+        current_seen = row.get("last_seen_at") or row.get("first_seen_at") or ""
+        if current_seen >= existing_seen:
+            seen_papers[paper_key] = row
+    return {
+        "seen_candidates": seen_candidates,
+        "seen_papers": seen_papers,
+    }
 
-    return filtered
+
+def ensure_tracking_files(data_dir: Path = DATA_DIR) -> None:
+    _ensure_csv(data_dir / "seen_candidates.csv", SEEN_CANDIDATES_FIELDS)
 
 
-def mark_candidates_drafted(
+def ensure_state_files(data_dir: Path = DATA_DIR) -> None:
+    ensure_tracking_files(data_dir)
+
+
+def ensure_seen_files(data_dir: Path = DATA_DIR) -> None:
+    _ensure_csv(data_dir / "seen_candidates.csv", SEEN_CANDIDATES_FIELDS)
+
+
+def recently_shortlisted(row: Optional[dict[str, str]], cooldown_days: int, now: datetime) -> bool:
+    if not row:
+        return False
+    was_shortlisted = _is_shortlisted_row(row)
+    if not was_shortlisted:
+        return False
+    last_seen = _parse_datetime(row.get("last_seen_at") or row.get("first_seen_at"))
+    if not last_seen:
+        return False
+    return (now - last_seen).days < cooldown_days
+
+
+def candidate_seen_status(candidate: Candidate, state: dict, cooldown_days: int, now: datetime) -> str:
+    candidate_row = state["seen_candidates"].get(candidate.candidate_key or "")
+    paper_row = state["seen_papers"].get(candidate.paper_key or "")
+    if recently_shortlisted(candidate_row, cooldown_days, now) or recently_shortlisted(
+        paper_row,
+        cooldown_days,
+        now,
+    ):
+        return "recently_shortlisted"
+    if _is_shortlisted_row(candidate_row) or _is_shortlisted_row(paper_row):
+        return "seen_before"
+    return "new"
+
+
+def novelty_score_for_seen_status(seen_status: str) -> float:
+    if seen_status == "new":
+        return 1.0
+    if seen_status == "seen_before":
+        return 0.7
+    if seen_status == "fallback_recently_seen":
+        return 0.25
+    return 0.15
+
+
+def write_seen_tracking(
     candidates: Iterable[Candidate],
     *,
+    selected_candidate_keys: set[str],
     data_dir: Path = DATA_DIR,
-    notes: str = "Draft generated by local CLI.",
-) -> list[Candidate]:
-    ensure_state_files(data_dir)
-    path = data_dir / "drafted_candidates.csv"
-    rows = _read_csv(path)
-    rows_by_key = {row.get("candidate_key", ""): row for row in rows if row.get("candidate_key")}
-    now = _now()
-    drafted_candidates: list[Candidate] = []
-
-    for candidate in candidates:
-        tracked = attach_tracking(candidate, status="drafted")
-        rows_by_key[tracked.candidate_key or ""] = {
-            "candidate_key": tracked.candidate_key or "",
-            "person_key": tracked.person_key or "",
-            "paper_key": tracked.paper_key or "",
-            "name": tracked.name,
-            "institution": tracked.institution or "",
-            "paper_title": tracked.paper_title or "",
-            "drafted_at": rows_by_key.get(tracked.candidate_key or "", {}).get("drafted_at") or now,
-            "status": "drafted",
-            "notes": notes,
-        }
-        drafted_candidates.append(tracked)
-
-    _write_csv(path, DRAFTED_CANDIDATES_FIELDS, rows_by_key.values())
-    return drafted_candidates
-
-
-def mark_contacted(
-    *,
-    person_key: str,
-    paper_key: str,
-    name: str,
-    institution: str,
-    paper_title: str,
-    paper_url: str,
-    status: str,
-    notes: str,
-    author_url: str = "",
-    email: str = "",
-    linkedin_url: str = "",
-    data_dir: Path = DATA_DIR,
-) -> str:
-    ensure_state_files(data_dir)
-    now = _now()
-    candidate_key = build_candidate_key(person_key, paper_key)
-
-    people_path = data_dir / "contacted_people.csv"
-    people_rows = {row.get("person_key", ""): row for row in _read_csv(people_path)}
-    existing_person = people_rows.get(person_key, {})
-    people_rows[person_key] = {
-        "person_key": person_key,
-        "name": name,
-        "institution": institution,
-        "author_url": author_url or existing_person.get("author_url", ""),
-        "email": email or existing_person.get("email", ""),
-        "linkedin_url": linkedin_url or existing_person.get("linkedin_url", ""),
-        "first_contacted_at": existing_person.get("first_contacted_at") or now,
-        "last_contacted_at": now,
-        "status": status,
-        "notes": notes,
-    }
-    _write_csv(people_path, CONTACTED_PEOPLE_FIELDS, people_rows.values())
-
-    papers_path = data_dir / "contacted_papers.csv"
-    paper_rows = {row.get("paper_key", ""): row for row in _read_csv(papers_path)}
-    existing_paper = paper_rows.get(paper_key, {})
-    paper_rows[paper_key] = {
-        "paper_key": paper_key,
-        "paper_title": paper_title,
-        "paper_url": paper_url,
-        "first_seen_at": existing_paper.get("first_seen_at") or now,
-        "status": "blocked" if status == "blocked" else "used_for_contact",
-        "notes": notes,
-    }
-    _write_csv(papers_path, CONTACTED_PAPERS_FIELDS, paper_rows.values())
-
-    drafted_path = data_dir / "drafted_candidates.csv"
-    drafted_rows = {row.get("candidate_key", ""): row for row in _read_csv(drafted_path)}
-    if candidate_key in drafted_rows:
-        drafted_rows[candidate_key]["status"] = status
-        drafted_rows[candidate_key]["notes"] = notes
-        _write_csv(drafted_path, DRAFTED_CANDIDATES_FIELDS, drafted_rows.values())
-
-    return candidate_key
-
-
-def load_state(data_dir: Path = DATA_DIR) -> dict[str, dict[str, str] | set[str]]:
-    ensure_state_files(data_dir)
-    contacted_people = {
-        row["person_key"]: row
-        for row in _read_csv(data_dir / "contacted_people.csv")
-        if row.get("person_key")
-    }
-    contacted_papers = {
-        row["paper_key"]: row
-        for row in _read_csv(data_dir / "contacted_papers.csv")
-        if row.get("paper_key")
-    }
-    drafted_candidates = {
+    now: Optional[datetime] = None,
+) -> None:
+    ensure_seen_files(data_dir)
+    candidate_list = list(candidates)
+    timestamp = (now or datetime.now(timezone.utc)).isoformat()
+    candidate_rows = {
         row["candidate_key"]: row
-        for row in _read_csv(data_dir / "drafted_candidates.csv")
+        for row in _read_csv(data_dir / "seen_candidates.csv")
         if row.get("candidate_key")
     }
-    blocked_rows = _read_csv(data_dir / "blocked_candidates.csv")
-    blocked_candidate_keys = {
-        row.get("candidate_key", "")
-        for row in blocked_rows
-        if row.get("candidate_key")
-    }
-    blocked_values = {
-        row.get("value", "")
-        for row in blocked_rows
-        if row.get("value")
-    }
 
-    return {
-        "contacted_people": contacted_people,
-        "contacted_papers": contacted_papers,
-        "drafted_candidates": drafted_candidates,
-        "blocked_candidate_keys": blocked_candidate_keys,
-        "blocked_values": blocked_values,
-    }
+    for candidate in candidate_list:
+        candidate_key = candidate.candidate_key or ""
+        if candidate_key:
+            row = candidate_rows.get(candidate_key, {})
+            candidate_rows[candidate_key] = {
+                "candidate_key": candidate_key,
+                "person_key": candidate.person_key or "",
+                "paper_key": candidate.paper_key or "",
+                "name": candidate.name,
+                "institution": candidate.institution or "",
+                "paper_title": candidate.paper_title or "",
+                "paper_url": candidate.paper_url or "",
+                "first_seen_at": row.get("first_seen_at") or timestamp,
+                "last_seen_at": timestamp,
+                "times_seen": str(_increment(row.get("times_seen"))),
+                "last_score": _format_score(candidate.final_score),
+                "last_group": candidate.group if candidate_key in selected_candidate_keys else row.get("last_group", ""),
+                "status": "shortlisted" if candidate_key in selected_candidate_keys else "seen",
+                "notes": candidate.verification_notes or row.get("notes", ""),
+            }
 
-
-def candidate_state_status(candidate: Candidate, state: dict) -> str:
-    person_key = candidate.person_key or ""
-    paper_key = candidate.paper_key or ""
-    candidate_key = candidate.candidate_key or ""
-
-    if (
-        candidate_key in state["blocked_candidate_keys"]
-        or candidate_key in state["blocked_values"]
-        or person_key in state["blocked_values"]
-    ):
-        return "blocked"
-
-    person_row = state["contacted_people"].get(person_key)
-    if person_row and person_row.get("status") in CONTACTED_PEOPLE_EXCLUDE_STATUSES:
-        return person_row.get("status", "contacted")
-
-    paper_row = state["contacted_papers"].get(paper_key)
-    if paper_row and paper_row.get("status") in CONTACTED_PAPERS_EXCLUDE_STATUSES:
-        return paper_row.get("status", "used_for_contact")
-
-    drafted_row = state["drafted_candidates"].get(candidate_key)
-    if drafted_row and drafted_row.get("status") in DRAFTED_EXCLUDE_STATUSES:
-        return drafted_row.get("status", "drafted")
-
-    return "new"
+    _write_csv(data_dir / "seen_candidates.csv", SEEN_CANDIDATES_FIELDS, candidate_rows.values())
 
 
 def build_person_key(candidate: Candidate) -> str:
@@ -287,13 +190,6 @@ def build_candidate_key(person_key: str, paper_key: str) -> str:
     return f"{person_key}::{paper_key}"
 
 
-def _ensure_csv(path: Path, fieldnames: list[str]) -> None:
-    if path.exists():
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _write_csv(path, fieldnames, [])
-
-
 def _read_csv(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
@@ -303,11 +199,18 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
 
 def _write_csv(path: Path, fieldnames: list[str], rows: Iterable[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    ordered_rows = sorted(rows, key=lambda row: row.get(fieldnames[0], ""))
     with path.open("w", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
-        for row in rows:
+        for row in ordered_rows:
             writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+
+def _ensure_csv(path: Path, fieldnames: list[str]) -> None:
+    if path.exists():
+        return
+    _write_csv(path, fieldnames, [])
 
 
 def _copy_candidate(candidate: Candidate, update: dict) -> Candidate:
@@ -329,5 +232,32 @@ def _normalize(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _increment(value: Optional[str]) -> int:
+    try:
+        return int(value or "0") + 1
+    except ValueError:
+        return 1
+
+
+def _format_score(value: Optional[float]) -> str:
+    if value is None:
+        return ""
+    return f"{value:.3f}"
+
+
+def _is_shortlisted_row(row: Optional[dict[str, str]]) -> bool:
+    if not row:
+        return False
+    return row.get("status") == "shortlisted" or bool(row.get("last_group"))

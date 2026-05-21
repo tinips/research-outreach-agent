@@ -1,209 +1,196 @@
 # Research Outreach Agent
 
-Research Outreach Agent is an MVP for AI research opportunity discovery across broad AI areas, prioritizing strong labs, recent papers, project activity, and contactable researchers.
+Research Outreach Agent is a local, human-reviewed workflow for finding research outreach candidates, exporting shortlists, generating editable draft emails, and optionally sending reviewed drafts over SMTP.
 
-The project combines a Custom GPT conversational interface with local OpenAlex search tooling. FastAPI/GPT Actions remain available, but the project can also run entirely outside ChatGPT and export files that a Custom GPT can read from GitHub.
+It is designed for personal research outreach workflows. It does not automate social networks, does not send from GitHub Actions, and should not be used for unreviewed bulk email.
 
-## Public Repository Notice
+## What It Does
 
-This public repository contains the source code, documentation, prompts, templates, and fake/example outputs for the Research Outreach Agent. Real generated candidates, outreach drafts, contact tracking files, API keys, and private workflow outputs are kept outside this public repository.
+- Searches OpenAlex for recent papers around user-provided research topics.
+- Scores and deduplicates candidate authors.
+- Optionally performs limited public email lookup with SerpAPI.
+- Writes candidate shortlists as Markdown, CSV, and JSON.
+- Generates deterministic editable email drafts from `prompts/email_template.md`.
+- Supports local SMTP dry runs, test sends, and capped real sends.
 
-The tool is designed for human-reviewed outreach. It does not send emails automatically.
+Generated candidates, seen history, drafts, logs, CVs, attachments, and credentials are local/private artifacts. Do not commit them to a public repository.
 
-## Architecture
+For a step-by-step guide to configuring the tool and personalizing draft emails, see [SETUP_AND_PERSONALIZATION.md](SETUP_AND_PERSONALIZATION.md).
 
-```text
-Custom GPT -> GPT Actions -> FastAPI backend -> OpenAlex
-```
-
-## Current MVP Features
-
-- FastAPI backend with `/health` and `/search_researchers`.
-- Broad AI discovery using OpenAlex `/works`.
-- Relevance-first discovery with optional citation or recency sorting.
-- Paper-author flattening into researcher candidate rows.
-- Paper-diverse candidate selection that avoids returning many authors from the same paper by default.
-- One recommended contact per paper by default, configurable with `max_authors_per_paper`.
-- Deduplication by OpenAlex author ID or normalized author name.
-- Rule-based scoring for lab signal, paper signal, project activity, contactability, contribution angle, and weak profile fit.
-- CLI search workflow that exports CSV, JSON, and Markdown to `outputs/latest`.
-- Optional API CSV export to `outputs/candidates.csv`.
-- GPT Actions OpenAPI schema.
-- Custom GPT instructions for human-reviewed outreach drafting.
-
-## Planned Features
-
-- Semantic Scholar and arXiv search actions.
-- Better public project, GitHub, dataset, demo, and benchmark detection.
-- Better candidate role detection for PhD students, postdocs, assistant professors, and research scientists.
-- Editable outreach draft generation.
-- Google Sheets export.
-- API key authentication before public deployment.
-
-This project does not implement automatic email sending, bulk outreach, LinkedIn automation, scraping, Gmail integration, authentication, or a database.
-
-## Setup On Windows PowerShell
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn backend.main:app --reload
-```
-
-Optionally copy `.env.example` to `.env` and set `OPENALEX_EMAIL` so OpenAlex receives a polite `mailto` parameter.
-
-## Optional Unix/macOS Setup
+## Setup
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+On Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+Create a local `.env` from the placeholder template:
+
+```bash
+cp .env.example .env
+```
+
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+## Configuration
+
+All values in `.env.example` are placeholders. Put real values only in your local `.env`.
+
+Useful variables:
+
+- `OPENALEX_EMAIL`: optional contact email for polite OpenAlex requests.
+- `SERPAPI_API_KEY`: optional key for public email lookup.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`: SMTP sending settings.
+- `SMTP_TEST_RECIPIENT`: where `--test` sends reviewed draft emails.
+- `SENDER_NAME`, `SENDER_BACKGROUND`, `SENDER_GITHUB`, `SENDER_LINKEDIN`, `CV_LINK`: values used by the draft template.
+
+Never commit `.env`, API keys, SMTP passwords, app passwords, CV files, attachments, candidate lists, generated drafts, logs, or seen-history files.
+
+After editing `.env`, review `prompts/email_template.md` so the generated drafts match your background, links, and outreach style. The full checklist is in [SETUP_AND_PERSONALIZATION.md](SETUP_AND_PERSONALIZATION.md).
+
+## Generate Candidates And Drafts
+
+Generate a fresh shortlist and editable drafts without public email lookup:
+
+```bash
+python main.py generate --no-email-lookup
+```
+
+Generate with public email lookup enabled:
+
+```bash
+python main.py generate --email-lookup --email-lookup-provider serpapi
+```
+
+Use custom topics:
+
+```bash
+python main.py generate \
+  --topics "LLM agents evaluation" "AI safety evaluation" "reproducible ML systems" \
+  --limit 40 \
+  --stretch-targets 3 \
+  --realistic-targets 3 \
+  --from-year 2023 \
+  --output-dir outputs/latest
+```
+
+Outputs are written under `outputs/latest/`:
+
+- `candidates.md`, `candidates.csv`, `candidates.json`
+- `drafts.md`, `drafts.csv`, `drafts.json`
+
+The `outputs/` directory is ignored except for `outputs/.gitkeep`.
+
+## Regenerate Drafts From Candidates
+
+Use this when you already have a candidate JSON file:
+
+```bash
+python main.py drafts --input examples/sample_candidates.json --output-dir outputs/example
+```
+
+By default, `drafts` reads `outputs/latest/candidates.json` and writes draft files to `outputs/latest/`.
+
+## Review And Send Safely
+
+Always review `drafts.md` or `drafts.json` before sending.
+
+Preview without sending:
+
+```bash
+python main.py send --input outputs/latest/drafts.json --dry-run
+```
+
+Send valid drafts to `SMTP_TEST_RECIPIENT` only:
+
+```bash
+python main.py send --input outputs/latest/drafts.json --test --max-send 1
+```
+
+Send reviewed drafts to real recipients:
+
+```bash
+python main.py send --input outputs/latest/drafts.json --max-send 3
+```
+
+Attach a CV explicitly when needed:
+
+```bash
+python main.py send --input outputs/latest/drafts.json --dry-run --cv path/to/your_cv.pdf
+```
+
+If `--cv` is omitted, the sender looks for exactly one PDF in `attachments/` or `cv/`. Those directories are ignored by Git.
+
+## API Mode
+
+Run the FastAPI app locally:
+
+```bash
 uvicorn backend.main:app --reload
 ```
 
-The API will run at:
+Open:
 
 ```text
-http://127.0.0.1:8000
+http://localhost:8000/docs
 ```
 
-## Test
+The OpenAPI schema in `schemas/openapi.yaml` uses `http://localhost:8000` by default.
 
-Open the interactive API docs:
+## Examples
 
-```text
-http://127.0.0.1:8000/docs
-```
+The `examples/` directory contains synthetic files only:
 
-Example request body:
+- `sample_request.json`
+- `sample_response.json`
+- `sample_candidates.json`
+- `sample_candidates.md`
+- `sample_drafts.json`
+- `sample_drafts.md`
 
-```json
-{
-  "topic": "artificial intelligence",
-  "limit": 5,
-  "save_csv": true,
-  "max_authors_per_paper": 1,
-  "from_year": 2023,
-  "sort_by": "relevance"
-}
-```
+They use fake names, fake institutions, and example domains. They are safe to commit.
 
-`sort_by` can be:
+## Development
 
-- `relevance`: let OpenAlex relevance drive the paper search.
-- `citations`: sort works by citation count descending.
-- `recent`: sort works by publication date descending.
-
-Broad AI discovery works best with targeted queries rather than one generic query. `artificial intelligence` is useful as a smoke test, but it is very broad and may return surveys, historical papers, or unrelated high-level work.
-
-Try several focused searches, then compare the resulting candidates:
-
-- `LLM agents evaluation`
-- `AI agents tool use benchmark`
-- `multimodal foundation models`
-- `AI for science foundation models`
-- `data-centric AI benchmark`
-- `robot learning foundation models`
-- `AI safety evaluation`
-- `scientific machine learning`
-- `ML systems for LLMs`
-
-## Workflow Without Custom GPT Actions
-
-Use this workflow when Custom GPT Actions or MCP are unavailable in your ChatGPT workspace.
-
-1. Run a local CLI search.
-2. Review `outputs/latest/candidates.md`.
-3. Commit selected output files to GitHub.
-4. Ask the Custom GPT to read the GitHub repo files and generate rankings or editable outreach drafts.
-
-Windows PowerShell example:
-
-```powershell
-.venv\Scripts\Activate.ps1
-python -m backend.cli_search --topics "LLM agents evaluation" "AI for science foundation models" "multimodal AI agents" --limit 10 --from-year 2023 --output-dir outputs/latest
-```
-
-The CLI writes:
-
-- `outputs/latest/candidates.csv`
-- `outputs/latest/candidates.json`
-- `outputs/latest/candidates.md`
-
-The Markdown file is optimized for Custom GPT reading. It includes search context, candidate metadata, scores, why each candidate is interesting, opportunity angles, suggested outreach angles, and verification notes. No email extraction or outreach sending is performed.
-
-To generate editable local draft skeletons and mark candidates as drafted:
-
-```powershell
-python -m backend.cli_agent --topics "LLM agents evaluation" "AI for science foundation models" "multimodal AI agents" --limit 10 --from-year 2023 --sort-by relevance --max-authors-per-paper 1 --output-dir outputs/latest
-```
-
-This also writes `outputs/latest/drafts.md`. It does not send anything.
-
-## Contact Tracking And Deduplication
-
-The workflow uses simple CSV state files in `data/` to avoid repeatedly drafting or contacting the same people and papers:
-
-- `data/contacted_people.csv`
-- `data/contacted_papers.csv`
-- `data/drafted_candidates.csv`
-- `data/blocked_candidates.csv`
-
-Candidate outputs include `person_key`, `paper_key`, `candidate_key`, and `status`. By default, `backend.cli_search` and `backend.cli_agent` exclude candidates that were already drafted, contacted, used for contact, rejected, replied, or blocked.
-
-Generated drafts are marked as `drafted`, not contacted. After you manually send an email, run:
-
-```powershell
-python -m backend.mark_contacted --person-key PERSON_KEY --paper-key PAPER_KEY --name "Name" --institution "Institution" --paper-title "Paper Title" --paper-url "URL" --status contacted --notes "Sent manually by email"
-```
-
-You can also update the CSV files by hand. No emails are sent automatically.
-
-For a public repository, keep `email`, `linkedin_url`, and sensitive notes blank unless they are public metadata and you have intentionally reviewed them. Use `data/private/` for local-only private tracking.
-
-## Automated Workflow Without Custom GPT Actions
-
-GitHub Actions can run discovery automatically without Custom GPT Actions, MCP, or a live local API connection. In this public repository, the workflow is provided only as an example and is not active.
-
-The example workflow in `examples/github_actions_discovery.example.yml`:
-
-- Runs weekly and can also be started manually.
-- Searches OpenAlex with broad AI topic queries.
-- Scores and deduplicates candidates.
-- Saves results to `outputs/latest`.
-- Commits `candidates.md`, `candidates.csv`, and `candidates.json` back to the repository only when they change.
-
-For real automation, copy the example workflow into `.github/workflows/discover.yml` in your private repository, not this public demo repository. Then run it manually from GitHub:
-
-```text
-Actions -> AI Research Discovery -> Run workflow
-```
-
-Then ask the Custom GPT:
-
-```text
-Read outputs/latest/candidates.md from this repo and rank the top 5 candidates. Then generate editable outreach drafts for the top 3. Do not send anything.
-```
-
-This avoids needing Custom GPT Actions or MCP. The Custom GPT reads the committed Markdown or JSON outputs from GitHub and helps with ranking and draft generation only.
-
-## Expose Later With ngrok
+Run tests:
 
 ```bash
-ngrok http 8000
+python -m unittest discover
 ```
 
-ngrok creates a temporary public URL that forwards requests to the local FastAPI server, allowing Custom GPT Actions to call the local backend during development.
+Check CLI help:
 
-## Connect To Custom GPT Actions
+```bash
+python main.py --help
+python main.py generate --help
+python main.py drafts --help
+python main.py send --help
+python main.py run --help
+```
 
-1. Expose the backend with ngrok or deploy it.
-2. Replace `https://YOUR_NGROK_OR_DEPLOYED_URL` in `schemas/openapi.yaml`.
-3. In GPT Builder, create a new action.
-4. Paste or import the OpenAPI schema.
-5. Use Authentication: None for the MVP.
+## Privacy Checklist
 
-## Safety
+Before publishing or committing, confirm that these are not tracked:
 
-This project is designed for high-quality, human-reviewed academic outreach and does not support automatic bulk email sending.
+- `.env` or other secret files
+- `outputs/latest/` or any generated output files
+- `data/*.csv` or `data/*.json`
+- real candidate shortlists or seen history
+- generated outreach drafts
+- logs, screenshots, caches, CVs, attachments
+- personal email addresses, profile links, or private workflow notes
+
+This repository should contain the reusable tool and synthetic examples only.

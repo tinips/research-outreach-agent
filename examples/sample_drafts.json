@@ -1,0 +1,27 @@
+{
+  "topics": ["LLM agents evaluation"],
+  "count": 1,
+  "drafts": [
+    {
+      "candidate_key": "openalex:A000000001::openalex:W000000001",
+      "person_key": "openalex:A000000001",
+      "paper_key": "openalex:W000000001",
+      "candidate_name": "Jane Researcher",
+      "group": "stretch",
+      "email": "researcher@example.edu",
+      "email_confidence": "high",
+      "name": "Jane Researcher",
+      "institution": "Example University",
+      "paper_title": "A Synthetic Benchmark for Reproducible AI Agents",
+      "paper_url": "https://example.com/papers/synthetic-agent-benchmark",
+      "subject": "Research collaboration around Synthetic Benchmark Reproducible AI",
+      "body": "Dear Jane,\n\nI am Example Sender, a researcher/engineer working on reproducible AI systems.\n\nI came across your work on \"A Synthetic Benchmark for Reproducible AI Agents\" and was especially interested in the evaluation and reproducibility angle.\n\nI would be glad to contribute to related research work, especially around benchmark implementation and analysis tooling.\n\nGitHub: https://github.com/your-username\nLinkedIn: https://www.linkedin.com/in/your-profile\nCV: attached CV\n\nWould you be open to considering whether I could contribute remotely to one of your ongoing projects?\n\nBest,\nExample Sender",
+      "draft_body": "Dear Jane,\n\nI am Example Sender, a researcher/engineer working on reproducible AI systems.\n\nI came across your work on \"A Synthetic Benchmark for Reproducible AI Agents\" and was especially interested in the evaluation and reproducibility angle.\n\nI would be glad to contribute to related research work, especially around benchmark implementation and analysis tooling.\n\nGitHub: https://github.com/your-username\nLinkedIn: https://www.linkedin.com/in/your-profile\nCV: attached CV\n\nWould you be open to considering whether I could contribute remotely to one of your ongoing projects?\n\nBest,\nExample Sender",
+      "verification_notes": "Synthetic example only."
+    }
+  ],
+  "notes": [
+    "Synthetic example only.",
+    "No outreach was sent."
+  ]
+}
